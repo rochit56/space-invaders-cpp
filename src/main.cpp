@@ -1,7 +1,42 @@
 #include <iostream>
 #include <cstdint>
+#include <cstdio>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+#define GL_ERROR_CASE(glerror) \
+    case glerror:              \
+        snprintf(error, sizeof(error), "%s", #glerror)
+
+inline void gl_debug(const char *file, int line)
+{
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR)
+    {
+        char error[128];
+
+        switch (err)
+        {
+            GL_ERROR_CASE(GL_INVALID_ENUM);
+            break;
+            GL_ERROR_CASE(GL_INVALID_VALUE);
+            break;
+            GL_ERROR_CASE(GL_INVALID_OPERATION);
+            break;
+            GL_ERROR_CASE(GL_INVALID_FRAMEBUFFER_OPERATION);
+            break;
+            GL_ERROR_CASE(GL_OUT_OF_MEMORY);
+            break;
+        default:
+            snprintf(error, sizeof(error), "%s", "UNKNOWN_ERROR");
+            break;
+        }
+
+        fprintf(stderr, "%s - %s: %d\n", error, file, line);
+    }
+}
+
+#undef GL_ERROR_CASE
 
 void error_callback(int e, const char *s) // a simple error callback that prints the error description
 {
@@ -61,6 +96,26 @@ struct Sprite
 {
     size_t width, height;
     uint8_t *data;
+};
+
+struct Alien
+{
+    size_t x, y;
+    uint8_t type;
+};
+
+struct Player
+{
+    size_t x, y;
+    size_t life;
+};
+
+struct Game
+{
+    size_t width, height;
+    size_t num_aliens;
+    Alien *aliens;
+    Player player;
 };
 
 void buffer_sprite_draw(Buffer *buffer, const Sprite &sprite,
@@ -211,13 +266,53 @@ int main(int, char **)
         0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0  // ...@@.@@...
     };
 
+    Sprite player_sprite;
+    player_sprite.width = 11;
+    player_sprite.height = 7;
+    player_sprite.data = new uint8_t[77]{
+        0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, // .....@.....
+        0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, // ....@@@....
+        0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, // ....@@@....
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, // .@@@@@@@@@.
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // @@@@@@@@@@@
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // @@@@@@@@@@@
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // @@@@@@@@@@@
+    };
+
+    Game game;
+    game.width = buffer_width;
+    game.height = buffer_height;
+    game.num_aliens = 55;
+    game.aliens = new Alien[game.num_aliens];
+
+    game.player.x = 122 - 5;
+    game.player.y = 32;
+    game.player.life = 3;
+
+    for (size_t yi = 0; yi < 5; ++yi)
+    {
+        for (size_t xi = 0; xi < 11; ++xi)
+        {
+            game.aliens[yi * 11 + xi].x = 16 * xi + 20;
+            game.aliens[yi * 11 + xi].y = 17 * yi + 128;
+        }
+    }
+
     uint32_t clear_color = rgb_to_uint32(0, 128, 0);
 
     while (!glfwWindowShouldClose(window))
     {
         buffer_clear(&buffer, clear_color);
 
-        buffer_sprite_draw(&buffer, alien_sprite, 112, 128, rgb_to_uint32(128, 0, 0));
+        // Draw
+        for (size_t ai = 0; ai < game.num_aliens; ++ai)
+        {
+            const Alien &alien = game.aliens[ai];
+            buffer_sprite_draw(&buffer, alien_sprite,
+                               alien.x, alien.y, rgb_to_uint32(128, 0, 0));
+        }
+
+        buffer_sprite_draw(&buffer, player_sprite, game.player.x, game.player.y, rgb_to_uint32(128, 0, 0));
 
         glTexSubImage2D(
             GL_TEXTURE_2D, 0, 0, 0,
