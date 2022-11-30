@@ -118,6 +118,15 @@ struct Game
     Player player;
 };
 
+struct SpriteAnimation
+{
+    bool loop;
+    size_t num_frames;
+    size_t frame_duration;
+    size_t time;
+    Sprite **frames;
+};
+
 void buffer_sprite_draw(Buffer *buffer, const Sprite &sprite,
                         size_t x, size_t y, uint32_t color)
 {
@@ -212,6 +221,8 @@ int main(int, char **)
 
     std::cout << glGetString(GL_VERSION) << std::endl;
 
+    glfwSwapInterval(1);
+
     glClearColor(.2f, .3f, .4f, 1.f);
 
     // Create graphic buffer
@@ -266,6 +277,20 @@ int main(int, char **)
         0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0  // ...@@.@@...
     };
 
+    Sprite alien_sprite1;
+    alien_sprite1.width = 11;
+    alien_sprite1.height = 8;
+    alien_sprite1.data = new uint8_t[88]{
+        0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, // ..@.....@..
+        1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, // @..@...@..@
+        1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, // @.@@@@@@@.@
+        1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, // @@@.@@@.@@@
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // @@@@@@@@@@@
+        0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, // .@@@@@@@@@.
+        0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, // ..@.....@..
+        0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0  // .@.......@.
+    };
+
     Sprite player_sprite;
     player_sprite.width = 11;
     player_sprite.height = 7;
@@ -278,6 +303,16 @@ int main(int, char **)
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // @@@@@@@@@@@
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // @@@@@@@@@@@
     };
+
+    SpriteAnimation *alien_animation = new SpriteAnimation;
+    alien_animation->loop = true;
+    alien_animation->num_frames = 2;
+    alien_animation->frame_duration = 10;
+    alien_animation->time = 0;
+
+    alien_animation->frames = new Sprite *[2];
+    alien_animation->frames[0] = &alien_sprite;
+    alien_animation->frames[1] = &alien_sprite1;
 
     Game game;
     game.width = buffer_width;
@@ -300,6 +335,7 @@ int main(int, char **)
 
     uint32_t clear_color = rgb_to_uint32(0, 128, 0);
 
+    int player_mov_dir = 1;
     while (!glfwWindowShouldClose(window))
     {
         buffer_clear(&buffer, clear_color);
@@ -308,11 +344,26 @@ int main(int, char **)
         for (size_t ai = 0; ai < game.num_aliens; ++ai)
         {
             const Alien &alien = game.aliens[ai];
-            buffer_sprite_draw(&buffer, alien_sprite,
+            size_t current_frame = alien_animation->time / alien_animation->frame_duration;
+            const Sprite &sprite = *alien_animation->frames[current_frame];
+            buffer_sprite_draw(&buffer, sprite,
                                alien.x, alien.y, rgb_to_uint32(128, 0, 0));
         }
 
         buffer_sprite_draw(&buffer, player_sprite, game.player.x, game.player.y, rgb_to_uint32(128, 0, 0));
+
+        // Update animation
+        ++alien_animation->time;
+        if (alien_animation->time == alien_animation->num_frames * alien_animation->frame_duration)
+        {
+            if (alien_animation->loop)
+                alien_animation->time = 0;
+            else
+            {
+                delete alien_animation;
+                alien_animation = nullptr;
+            }
+        }
 
         glTexSubImage2D(
             GL_TEXTURE_2D, 0, 0, 0,
@@ -323,6 +374,19 @@ int main(int, char **)
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glfwSwapBuffers(window);
+
+        if (game.player.x + player_sprite.width + player_mov_dir >= game.width - 1)
+        {
+            game.player.x = game.width - player_sprite.width - player_mov_dir - 1;
+            player_mov_dir *= -1;
+        }
+        else if ((int)game.player.x + player_mov_dir <= 0)
+        {
+            game.player.x = 0;
+            player_mov_dir *= -1;
+        }
+        else
+            game.player.x += player_mov_dir;
 
         glfwPollEvents();
     }
