@@ -1,8 +1,12 @@
 #include <iostream>
 #include <cstdint>
+#include <limits>
 #include <cstdio>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
+bool game_running = false;
+int move_dir = 0;
 
 #define GL_ERROR_CASE(glerror) \
     case glerror:              \
@@ -84,6 +88,34 @@ static u_int create_shader(const std::string &vertex, const std::string &frag)
     glDeleteShader(fs);
 
     return program;
+}
+
+void key_callback(GLFWwindow *win, int key, int scancode, int action, int mods)
+{
+    switch ((key))
+    {
+    case GLFW_KEY_ESCAPE:
+        if (action == GLFW_PRESS)
+            game_running = false;
+        break;
+
+    case GLFW_KEY_RIGHT:
+        if (action == GLFW_PRESS)
+            move_dir += 1;
+        else if (action == GLFW_RELEASE)
+            move_dir -= 1;
+        break;
+
+    case GLFW_KEY_LEFT:
+        if (action == GLFW_PRESS)
+            move_dir -= 1;
+        else if (action == GLFW_RELEASE)
+            move_dir += 1;
+        break;
+
+    default:
+        break;
+    }
 }
 
 struct Buffer
@@ -209,6 +241,8 @@ int main(int, char **)
         glfwTerminate();
         return -1;
     }
+
+    glfwSetKeyCallback(window, key_callback);
     glfwMakeContextCurrent(window);
 
     // initialize GLEW
@@ -336,7 +370,9 @@ int main(int, char **)
     uint32_t clear_color = rgb_to_uint32(0, 128, 0);
 
     int player_mov_dir = 1;
-    while (!glfwWindowShouldClose(window))
+    game_running = true;
+
+    while (!glfwWindowShouldClose(window) && game_running)
     {
         buffer_clear(&buffer, clear_color);
 
@@ -375,18 +411,23 @@ int main(int, char **)
 
         glfwSwapBuffers(window);
 
-        if (game.player.x + player_sprite.width + player_mov_dir >= game.width - 1)
+        // simulate player
+        player_mov_dir = 2 * move_dir;
+        if (player_mov_dir != 0)
         {
-            game.player.x = game.width - player_sprite.width - player_mov_dir - 1;
-            player_mov_dir *= -1;
+            if (game.player.x + player_sprite.width + player_mov_dir >= game.width - 1)
+            {
+                game.player.x = game.width - player_sprite.width - player_mov_dir - 1;
+                player_mov_dir *= -1;
+            }
+            else if ((int)game.player.x + player_mov_dir <= 0)
+            {
+                game.player.x = 0;
+                player_mov_dir *= -1;
+            }
+            else
+                game.player.x += player_mov_dir;
         }
-        else if ((int)game.player.x + player_mov_dir <= 0)
-        {
-            game.player.x = 0;
-            player_mov_dir *= -1;
-        }
-        else
-            game.player.x += player_mov_dir;
 
         glfwPollEvents();
     }
